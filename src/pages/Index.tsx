@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Icon from "@/components/ui/icon";
 
-type Rarity = "common" | "legendary";
+type Rarity = "common" | "rare" | "legendary";
 
 interface BoxResult {
   rarity: Rarity;
@@ -19,6 +19,12 @@ const COMMON_BOOBA = {
   name: "Обычный Буба"
 };
 
+const RARE_BOOBA = {
+  image: "https://cdn.poehali.dev/files/ff56f3ff-c208-45e4-997d-122a25da7945.jpg",
+  reward: 100,
+  name: "Военный Буба"
+};
+
 const LEGENDARY_BOOBA = {
   image: "https://cdn.poehali.dev/files/100dc695-74a4-4380-94e0-7b5c5d07288f.jpg",
   reward: 500,
@@ -27,16 +33,85 @@ const LEGENDARY_BOOBA = {
 
 const BOX_PRICE = 50;
 const AD_REWARD = 100;
+const RARE_CHANCE = 0.15;
 const LEGENDARY_CHANCE = 0.05;
+const AD_COOLDOWN = 60 * 60 * 1000;
 
 const Index = () => {
-  const [balance, setBalance] = useState(50);
+  const [balance, setBalance] = useState(() => {
+    const saved = localStorage.getItem("balance");
+    return saved ? parseInt(saved) : 50;
+  });
   const [isOpening, setIsOpening] = useState(false);
   const [currentResult, setCurrentResult] = useState<BoxResult | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const [adCooldown, setAdCooldown] = useState<number | null>(() => {
+    const saved = localStorage.getItem("adCooldown");
+    return saved ? parseInt(saved) : null;
+  });
+  const [timeLeft, setTimeLeft] = useState<string>("");
+  const [adClickTime, setAdClickTime] = useState<number | null>(null);
   const { toast } = useToast();
 
-  const playSound = (type: "open" | "common" | "legendary") => {
+  useEffect(() => {
+    localStorage.setItem("balance", balance.toString());
+  }, [balance]);
+
+  useEffect(() => {
+    if (adCooldown) {
+      localStorage.setItem("adCooldown", adCooldown.toString());
+    } else {
+      localStorage.removeItem("adCooldown");
+    }
+  }, [adCooldown]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && adClickTime) {
+        const timePassed = Date.now() - adClickTime;
+        if (timePassed < 10000) {
+          setBalance(0);
+          setAdCooldown(Date.now() + AD_COOLDOWN);
+          toast({
+            title: "❌ ОБМАНЩИК ЗАБЛОКИРОВАН!",
+            description: "Ты не посмотрел рекламу! Все деньги изъяты. Блокировка на 1 час.",
+            variant: "destructive",
+          });
+          playSound("error");
+        }
+        setAdClickTime(null);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [adClickTime]);
+
+  useEffect(() => {
+    if (!adCooldown) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const remaining = adCooldown - now;
+
+      if (remaining <= 0) {
+        setAdCooldown(null);
+        setTimeLeft("");
+        toast({
+          title: "✅ Блокировка снята!",
+          description: "Теперь можешь снова смотреть рекламу",
+        });
+      } else {
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        setTimeLeft(`${minutes}:${seconds.toString().padStart(2, "0")}`);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [adCooldown]);
+
+  const playSound = (type: "open" | "common" | "rare" | "legendary" | "error") => {
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
@@ -58,7 +133,19 @@ const Index = () => {
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.2);
-    } else {
+    } else if (type === "rare") {
+      [0, 0.15, 0.3].forEach((time) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.frequency.setValueAtTime(440 + time * 150, audioContext.currentTime + time);
+        gain.gain.setValueAtTime(0.25, audioContext.currentTime + time);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + time + 0.4);
+        osc.start(audioContext.currentTime + time);
+        osc.stop(audioContext.currentTime + time + 0.4);
+      });
+    } else if (type === "legendary") {
       [0, 0.1, 0.2, 0.3].forEach((time) => {
         const osc = audioContext.createOscillator();
         const gain = audioContext.createGain();
@@ -70,6 +157,13 @@ const Index = () => {
         osc.start(audioContext.currentTime + time);
         osc.stop(audioContext.currentTime + time + 0.3);
       });
+    } else if (type === "error") {
+      oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(100, audioContext.currentTime + 0.1);
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.4);
     }
   };
 
@@ -89,42 +183,75 @@ const Index = () => {
     playSound("open");
 
     setTimeout(() => {
-      const isLegendary = Math.random() < LEGENDARY_CHANCE;
-      const result: BoxResult = isLegendary
-        ? {
-            rarity: "legendary",
-            reward: LEGENDARY_BOOBA.reward,
-            image: LEGENDARY_BOOBA.image,
-            name: LEGENDARY_BOOBA.name,
-          }
-        : {
-            rarity: "common",
-            reward: COMMON_BOOBA.reward,
-            image: COMMON_BOOBA.image,
-            name: COMMON_BOOBA.name,
-          };
+      const rand = Math.random();
+      let result: BoxResult;
+
+      if (rand < LEGENDARY_CHANCE) {
+        result = {
+          rarity: "legendary",
+          reward: LEGENDARY_BOOBA.reward,
+          image: LEGENDARY_BOOBA.image,
+          name: LEGENDARY_BOOBA.name,
+        };
+      } else if (rand < LEGENDARY_CHANCE + RARE_CHANCE) {
+        result = {
+          rarity: "rare",
+          reward: RARE_BOOBA.reward,
+          image: RARE_BOOBA.image,
+          name: RARE_BOOBA.name,
+        };
+      } else {
+        result = {
+          rarity: "common",
+          reward: COMMON_BOOBA.reward,
+          image: COMMON_BOOBA.image,
+          name: COMMON_BOOBA.name,
+        };
+      }
 
       setCurrentResult(result);
       setIsOpening(false);
       setShowResult(true);
       setBalance((prev) => prev + result.reward);
-      playSound(result.rarity === "legendary" ? "legendary" : "common");
+      playSound(result.rarity);
+
+      const titles = {
+        legendary: "🎉 ЛЕГЕНДАРКА!",
+        rare: "⚔️ ОЧЕНЬ РЕДКИЙ!",
+        common: "Выпал Буба!"
+      };
 
       toast({
-        title: result.rarity === "legendary" ? "🎉 ЛЕГЕНДАРКА!" : "Выпал Буба!",
+        title: titles[result.rarity],
         description: `Ты получил ${result.reward} валюты!`,
-        variant: result.rarity === "legendary" ? "default" : "default",
       });
     }, 2000);
   };
 
   const watchAd = () => {
+    if (adCooldown && Date.now() < adCooldown) {
+      toast({
+        title: "⏳ Блокировка активна!",
+        description: `Осталось: ${timeLeft}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAdClickTime(Date.now());
     window.open("https://t.me/+r0KZTuxnHuUzNGZi", "_blank");
-    setBalance((prev) => prev + AD_REWARD);
-    toast({
-      title: "Спасибо за просмотр!",
-      description: `Ты получил ${AD_REWARD} валюты!`,
-    });
+
+    setTimeout(() => {
+      if (adClickTime && Date.now() - adClickTime >= 10000) {
+        setBalance((prev) => prev + AD_REWARD);
+        setAdCooldown(Date.now() + AD_COOLDOWN);
+        toast({
+          title: "✅ Спасибо за просмотр!",
+          description: `Ты получил ${AD_REWARD} валюты! Следующая реклама через 1 час.`,
+        });
+        setAdClickTime(null);
+      }
+    }, 10000);
   };
 
   return (
@@ -150,11 +277,21 @@ const Index = () => {
 
           <Button
             onClick={watchAd}
+            disabled={adCooldown !== null && Date.now() < adCooldown}
             size="lg"
-            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-6 py-6 text-lg shadow-lg hover:shadow-xl transition-all"
+            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-6 py-6 text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Icon name="Play" className="mr-2 w-6 h-6" />
-            Реклама +{AD_REWARD}
+            {adCooldown && Date.now() < adCooldown ? (
+              <>
+                <Icon name="Clock" className="mr-2 w-6 h-6" />
+                {timeLeft}
+              </>
+            ) : (
+              <>
+                <Icon name="Play" className="mr-2 w-6 h-6" />
+                Реклама +{AD_REWARD}
+              </>
+            )}
           </Button>
         </div>
 
@@ -172,6 +309,8 @@ const Index = () => {
                   ? "border-purple-500 animate-pulse scale-110"
                   : showResult && currentResult?.rarity === "legendary"
                   ? "border-yellow-500 shadow-2xl shadow-yellow-500/50"
+                  : showResult && currentResult?.rarity === "rare"
+                  ? "border-orange-500 shadow-2xl shadow-orange-500/50"
                   : "border-purple-700"
               } transition-all duration-500 cursor-pointer hover:scale-105`}
               onClick={!isOpening && !showResult ? openBox : undefined}
@@ -207,11 +346,17 @@ const Index = () => {
               className={`px-8 py-4 ${
                 currentResult.rarity === "legendary"
                   ? "bg-gradient-to-r from-yellow-600 to-orange-600 border-yellow-400 animate-pulse"
+                  : currentResult.rarity === "rare"
+                  ? "bg-gradient-to-r from-orange-600 to-red-600 border-orange-400 shadow-lg shadow-orange-500/30"
                   : "bg-gradient-to-r from-blue-600 to-cyan-600 border-blue-400"
               } border-2 animate-scale-in`}
             >
               <p className="text-2xl font-black text-center">
-                {currentResult.rarity === "legendary" ? "⭐ ЛЕГЕНДАРНЫЙ БУБА ⭐" : currentResult.name}
+                {currentResult.rarity === "legendary" 
+                  ? "⭐ ЛЕГЕНДАРНЫЙ БУБА ⭐" 
+                  : currentResult.rarity === "rare"
+                  ? "⚔️ ВОЕННЫЙ БУБА ⚔️"
+                  : currentResult.name}
               </p>
               <p className="text-xl font-bold text-center mt-2">+{currentResult.reward} валюты</p>
             </Card>
@@ -242,14 +387,29 @@ const Index = () => {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card className="bg-slate-800/50 border-blue-500/30 p-6">
             <div className="flex items-start gap-4">
               <img src={COMMON_BOOBA.image} alt="Обычный Буба" className="w-20 h-20 object-contain rounded-lg" />
               <div>
                 <p className="text-xl font-bold text-blue-400">Обычный Буба</p>
                 <p className="text-gray-400 text-sm mt-1">Награда: {COMMON_BOOBA.reward} валюты</p>
-                <p className="text-gray-500 text-xs mt-2">Шанс: 95%</p>
+                <p className="text-gray-500 text-xs mt-2">Шанс: 80%</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="bg-slate-800/50 border-orange-500/30 p-6 shadow-lg shadow-orange-500/10">
+            <div className="flex items-start gap-4">
+              <img
+                src={RARE_BOOBA.image}
+                alt="Военный Буба"
+                className="w-20 h-20 object-contain rounded-lg"
+              />
+              <div>
+                <p className="text-xl font-bold text-orange-400">⚔️ Военный Буба ⚔️</p>
+                <p className="text-gray-400 text-sm mt-1">Награда: {RARE_BOOBA.reward} валюты</p>
+                <p className="text-gray-500 text-xs mt-2">Шанс: 15% (очень редкий!)</p>
               </div>
             </div>
           </Card>
@@ -264,7 +424,7 @@ const Index = () => {
               <div>
                 <p className="text-xl font-bold text-yellow-400">⭐ Легендарный Буба ⭐</p>
                 <p className="text-gray-400 text-sm mt-1">Награда: {LEGENDARY_BOOBA.reward} валюты</p>
-                <p className="text-gray-500 text-xs mt-2">Шанс: 5% (очень редкий!)</p>
+                <p className="text-gray-500 text-xs mt-2">Шанс: 5% (супер редкий!)</p>
               </div>
             </div>
           </Card>
