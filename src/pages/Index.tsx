@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Icon from "@/components/ui/icon";
 
-type Rarity = "common" | "rare" | "legendary";
+type Rarity = "common" | "rare" | "epic" | "legendary";
 
 interface BoxResult {
   rarity: Rarity;
@@ -25,6 +25,12 @@ const RARE_BOOBA = {
   name: "Военный Буба"
 };
 
+const EPIC_BOOBA = {
+  image: "https://cdn.poehali.dev/files/476a23e9-cffb-4e67-910c-8486f77cbead.jpg",
+  reward: 250,
+  name: "Спящий Буба"
+};
+
 const LEGENDARY_BOOBA = {
   image: "https://cdn.poehali.dev/files/100dc695-74a4-4380-94e0-7b5c5d07288f.jpg",
   reward: 500,
@@ -34,8 +40,10 @@ const LEGENDARY_BOOBA = {
 const BOX_PRICE = 50;
 const AD_REWARD = 100;
 const RARE_CHANCE = 0.15;
+const EPIC_CHANCE = 0.10;
 const LEGENDARY_CHANCE = 0.05;
 const AD_COOLDOWN = 60 * 60 * 1000;
+const QUICK_RETURN_THRESHOLD = 5000;
 
 const Index = () => {
   const [balance, setBalance] = useState(() => {
@@ -51,6 +59,7 @@ const Index = () => {
   });
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [adClickTime, setAdClickTime] = useState<number | null>(null);
+  const [quickReturnCount, setQuickReturnCount] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -69,23 +78,45 @@ const Index = () => {
     const handleVisibilityChange = () => {
       if (!document.hidden && adClickTime) {
         const timePassed = Date.now() - adClickTime;
-        if (timePassed < 10000) {
-          setBalance(0);
+        
+        if (timePassed < QUICK_RETURN_THRESHOLD) {
+          if (quickReturnCount === 0) {
+            setQuickReturnCount(1);
+            toast({
+              title: "⚠️ Предупреждение!",
+              description: "Первый быстрый возврат прощён. Второй = блокировка!",
+              variant: "default",
+            });
+          } else {
+            setBalance(0);
+            setAdCooldown(Date.now() + AD_COOLDOWN);
+            setQuickReturnCount(0);
+            setAdClickTime(null);
+            toast({
+              title: "❌ ОБМАНЩИК ЗАБЛОКИРОВАН!",
+              description: "Два быстрых возврата! Все деньги изъяты. Блокировка на 1 час.",
+              variant: "destructive",
+            });
+            playSound("error");
+            return;
+          }
+        } else {
+          setBalance((prev) => prev + AD_REWARD);
           setAdCooldown(Date.now() + AD_COOLDOWN);
+          setQuickReturnCount(0);
+          setAdClickTime(null);
           toast({
-            title: "❌ ОБМАНЩИК ЗАБЛОКИРОВАН!",
-            description: "Ты не посмотрел рекламу! Все деньги изъяты. Блокировка на 1 час.",
-            variant: "destructive",
+            title: "✅ Спасибо за просмотр!",
+            description: `Ты получил ${AD_REWARD} валюты! Следующая реклама через 1 час.`,
           });
-          playSound("error");
+          return;
         }
-        setAdClickTime(null);
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [adClickTime]);
+  }, [adClickTime, quickReturnCount]);
 
   useEffect(() => {
     if (!adCooldown) return;
@@ -111,7 +142,7 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [adCooldown]);
 
-  const playSound = (type: "open" | "common" | "rare" | "legendary" | "error") => {
+  const playSound = (type: "open" | "common" | "rare" | "epic" | "legendary" | "error") => {
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
@@ -144,6 +175,18 @@ const Index = () => {
         gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + time + 0.4);
         osc.start(audioContext.currentTime + time);
         osc.stop(audioContext.currentTime + time + 0.4);
+      });
+    } else if (type === "epic") {
+      [0, 0.12, 0.24, 0.36].forEach((time) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.frequency.setValueAtTime(493.88 + time * 180, audioContext.currentTime + time);
+        gain.gain.setValueAtTime(0.28, audioContext.currentTime + time);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + time + 0.35);
+        osc.start(audioContext.currentTime + time);
+        osc.stop(audioContext.currentTime + time + 0.35);
       });
     } else if (type === "legendary") {
       [0, 0.1, 0.2, 0.3].forEach((time) => {
@@ -193,7 +236,14 @@ const Index = () => {
           image: LEGENDARY_BOOBA.image,
           name: LEGENDARY_BOOBA.name,
         };
-      } else if (rand < LEGENDARY_CHANCE + RARE_CHANCE) {
+      } else if (rand < LEGENDARY_CHANCE + EPIC_CHANCE) {
+        result = {
+          rarity: "epic",
+          reward: EPIC_BOOBA.reward,
+          image: EPIC_BOOBA.image,
+          name: EPIC_BOOBA.name,
+        };
+      } else if (rand < LEGENDARY_CHANCE + EPIC_CHANCE + RARE_CHANCE) {
         result = {
           rarity: "rare",
           reward: RARE_BOOBA.reward,
@@ -217,6 +267,7 @@ const Index = () => {
 
       const titles = {
         legendary: "🎉 ЛЕГЕНДАРКА!",
+        epic: "💤 ЭПИЧЕСКИЙ!",
         rare: "⚔️ ОЧЕНЬ РЕДКИЙ!",
         common: "Выпал Буба!"
       };
@@ -239,19 +290,8 @@ const Index = () => {
     }
 
     setAdClickTime(Date.now());
+    setQuickReturnCount(0);
     window.open("https://t.me/+r0KZTuxnHuUzNGZi", "_blank");
-
-    setTimeout(() => {
-      if (adClickTime && Date.now() - adClickTime >= 10000) {
-        setBalance((prev) => prev + AD_REWARD);
-        setAdCooldown(Date.now() + AD_COOLDOWN);
-        toast({
-          title: "✅ Спасибо за просмотр!",
-          description: `Ты получил ${AD_REWARD} валюты! Следующая реклама через 1 час.`,
-        });
-        setAdClickTime(null);
-      }
-    }, 10000);
   };
 
   return (
@@ -309,6 +349,8 @@ const Index = () => {
                   ? "border-purple-500 animate-pulse scale-110"
                   : showResult && currentResult?.rarity === "legendary"
                   ? "border-yellow-500 shadow-2xl shadow-yellow-500/50"
+                  : showResult && currentResult?.rarity === "epic"
+                  ? "border-pink-500 shadow-2xl shadow-pink-500/50"
                   : showResult && currentResult?.rarity === "rare"
                   ? "border-orange-500 shadow-2xl shadow-orange-500/50"
                   : "border-purple-700"
@@ -346,6 +388,8 @@ const Index = () => {
               className={`px-8 py-4 ${
                 currentResult.rarity === "legendary"
                   ? "bg-gradient-to-r from-yellow-600 to-orange-600 border-yellow-400 animate-pulse"
+                  : currentResult.rarity === "epic"
+                  ? "bg-gradient-to-r from-pink-600 to-purple-600 border-pink-400 shadow-lg shadow-pink-500/30 animate-pulse"
                   : currentResult.rarity === "rare"
                   ? "bg-gradient-to-r from-orange-600 to-red-600 border-orange-400 shadow-lg shadow-orange-500/30"
                   : "bg-gradient-to-r from-blue-600 to-cyan-600 border-blue-400"
@@ -354,6 +398,8 @@ const Index = () => {
               <p className="text-2xl font-black text-center">
                 {currentResult.rarity === "legendary" 
                   ? "⭐ ЛЕГЕНДАРНЫЙ БУБА ⭐" 
+                  : currentResult.rarity === "epic"
+                  ? "💤 СПЯЩИЙ БУБА 💤"
                   : currentResult.rarity === "rare"
                   ? "⚔️ ВОЕННЫЙ БУБА ⚔️"
                   : currentResult.name}
@@ -387,44 +433,59 @@ const Index = () => {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card className="bg-slate-800/50 border-blue-500/30 p-6">
-            <div className="flex items-start gap-4">
+            <div className="flex flex-col items-center gap-3">
               <img src={COMMON_BOOBA.image} alt="Обычный Буба" className="w-20 h-20 object-contain rounded-lg" />
-              <div>
-                <p className="text-xl font-bold text-blue-400">Обычный Буба</p>
-                <p className="text-gray-400 text-sm mt-1">Награда: {COMMON_BOOBA.reward} валюты</p>
-                <p className="text-gray-500 text-xs mt-2">Шанс: 80%</p>
+              <div className="text-center">
+                <p className="text-lg font-bold text-blue-400">Обычный Буба</p>
+                <p className="text-gray-400 text-sm mt-1">{COMMON_BOOBA.reward} валюты</p>
+                <p className="text-gray-500 text-xs mt-2">Шанс: 70%</p>
               </div>
             </div>
           </Card>
 
           <Card className="bg-slate-800/50 border-orange-500/30 p-6 shadow-lg shadow-orange-500/10">
-            <div className="flex items-start gap-4">
+            <div className="flex flex-col items-center gap-3">
               <img
                 src={RARE_BOOBA.image}
                 alt="Военный Буба"
                 className="w-20 h-20 object-contain rounded-lg"
               />
-              <div>
-                <p className="text-xl font-bold text-orange-400">⚔️ Военный Буба ⚔️</p>
-                <p className="text-gray-400 text-sm mt-1">Награда: {RARE_BOOBA.reward} валюты</p>
-                <p className="text-gray-500 text-xs mt-2">Шанс: 15% (очень редкий!)</p>
+              <div className="text-center">
+                <p className="text-lg font-bold text-orange-400">⚔️ Военный Буба</p>
+                <p className="text-gray-400 text-sm mt-1">{RARE_BOOBA.reward} валюты</p>
+                <p className="text-gray-500 text-xs mt-2">Шанс: 15%</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="bg-slate-800/50 border-pink-500/30 p-6 shadow-lg shadow-pink-500/10">
+            <div className="flex flex-col items-center gap-3">
+              <img
+                src={EPIC_BOOBA.image}
+                alt="Спящий Буба"
+                className="w-20 h-20 object-contain rounded-lg"
+              />
+              <div className="text-center">
+                <p className="text-lg font-bold text-pink-400">💤 Спящий Буба</p>
+                <p className="text-gray-400 text-sm mt-1">{EPIC_BOOBA.reward} валюты</p>
+                <p className="text-gray-500 text-xs mt-2">Шанс: 10%</p>
               </div>
             </div>
           </Card>
 
           <Card className="bg-slate-800/50 border-yellow-500/30 p-6 shadow-lg shadow-yellow-500/10">
-            <div className="flex items-start gap-4">
+            <div className="flex flex-col items-center gap-3">
               <img
                 src={LEGENDARY_BOOBA.image}
                 alt="Легендарный Буба"
                 className="w-20 h-20 object-contain rounded-lg"
               />
-              <div>
-                <p className="text-xl font-bold text-yellow-400">⭐ Легендарный Буба ⭐</p>
-                <p className="text-gray-400 text-sm mt-1">Награда: {LEGENDARY_BOOBA.reward} валюты</p>
-                <p className="text-gray-500 text-xs mt-2">Шанс: 5% (супер редкий!)</p>
+              <div className="text-center">
+                <p className="text-lg font-bold text-yellow-400">⭐ Легендарный</p>
+                <p className="text-gray-400 text-sm mt-1">{LEGENDARY_BOOBA.reward} валюты</p>
+                <p className="text-gray-500 text-xs mt-2">Шанс: 5%</p>
               </div>
             </div>
           </Card>
