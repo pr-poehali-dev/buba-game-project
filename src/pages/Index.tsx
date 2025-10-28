@@ -15,13 +15,13 @@ interface BoxResult {
 
 const COMMON_BOOBA = {
   image: "https://cdn.poehali.dev/files/013288d5-b69b-4695-93f4-ede0ba07d56a.jpg",
-  reward: 50,
+  reward: 80,
   name: "Обычный Буба"
 };
 
 const RARE_BOOBA = {
   image: "https://cdn.poehali.dev/files/ff56f3ff-c208-45e4-997d-122a25da7945.jpg",
-  reward: 100,
+  reward: 200,
   name: "Военный Буба"
 };
 
@@ -37,11 +37,11 @@ const LEGENDARY_BOOBA = {
   name: "Легендарный Буба"
 };
 
-const BOX_PRICE = 50;
+const BOX_PRICE = 150;
 const AD_REWARD = 100;
-const RARE_CHANCE = 0.15;
-const EPIC_CHANCE = 0.10;
-const LEGENDARY_CHANCE = 0.05;
+const RARE_CHANCE = 0.08;
+const EPIC_CHANCE = 0.03;
+const LEGENDARY_CHANCE = 0.01;
 const AD_COOLDOWN = 60 * 60 * 1000;
 const QUICK_RETURN_THRESHOLD = 5000;
 
