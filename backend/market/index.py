@@ -55,7 +55,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 inventory_id = body_data.get('inventory_id')
                 price = body_data.get('price')
                 
-                cur.execute(f"SELECT * FROM inventory WHERE id = {inventory_id} AND user_id = '{user_id}'")
+                user_id_safe = user_id.replace("'", "''")
+                
+                cur.execute(f"SELECT * FROM inventory WHERE id = {inventory_id} AND user_id = '{user_id_safe}'")
                 item = cur.fetchone()
                 
                 if not item:
@@ -66,9 +68,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'isBase64Encoded': False
                     }
                 
+                booba_type_safe = item['booba_type'].replace("'", "''")
+                booba_name_safe = item['booba_name'].replace("'", "''")
+                booba_image_safe = item['booba_image'].replace("'", "''")
+                booba_rarity_safe = item['booba_rarity'].replace("'", "''")
+                
                 cur.execute(f"""
                     INSERT INTO market_listings (seller_id, inventory_id, price, booba_type, booba_name, booba_image, booba_rarity)
-                    VALUES ('{user_id}', {inventory_id}, {price}, '{item['booba_type']}', '{item['booba_name']}', '{item['booba_image']}', '{item['booba_rarity']}')
+                    VALUES ('{user_id_safe}', {inventory_id}, {price}, '{booba_type_safe}', '{booba_name_safe}', '{booba_image_safe}', '{booba_rarity_safe}')
                     RETURNING id
                 """)
                 conn.commit()
@@ -102,7 +109,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'isBase64Encoded': False
                     }
                 
-                cur.execute(f"SELECT balance FROM users WHERE user_id = '{user_id}'")
+                user_id_safe = user_id.replace("'", "''")
+                seller_id_safe = listing['seller_id'].replace("'", "''")
+                
+                cur.execute(f"SELECT balance FROM users WHERE user_id = '{user_id_safe}'")
                 buyer = cur.fetchone()
                 buyer_balance = buyer['balance'] if buyer else 50
                 
@@ -114,14 +124,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'isBase64Encoded': False
                     }
                 
-                cur.execute(f"INSERT INTO users (user_id, balance) VALUES ('{user_id}', {buyer_balance - listing['price']}) ON CONFLICT (user_id) DO UPDATE SET balance = {buyer_balance - listing['price']}")
+                cur.execute(f"INSERT INTO users (user_id, balance) VALUES ('{user_id_safe}', {buyer_balance - listing['price']}) ON CONFLICT (user_id) DO UPDATE SET balance = {buyer_balance - listing['price']}")
                 
-                cur.execute(f"SELECT balance FROM users WHERE user_id = '{listing['seller_id']}'")
+                cur.execute(f"SELECT balance FROM users WHERE user_id = '{seller_id_safe}'")
                 seller = cur.fetchone()
                 seller_balance = seller['balance'] if seller else 50
-                cur.execute(f"UPDATE users SET balance = {seller_balance + listing['price']} WHERE user_id = '{listing['seller_id']}'")
+                cur.execute(f"UPDATE users SET balance = {seller_balance + listing['price']} WHERE user_id = '{seller_id_safe}'")
                 
-                cur.execute(f"UPDATE inventory SET user_id = '{user_id}' WHERE id = {listing['inventory_id']}")
+                cur.execute(f"UPDATE inventory SET user_id = '{user_id_safe}' WHERE id = {listing['inventory_id']}")
                 
                 cur.execute(f"DELETE FROM market_listings WHERE id = {listing_id}")
                 
@@ -140,6 +150,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             query_params = event.get('queryStringParameters', {})
             listing_id = query_params.get('listing_id')
             user_id = event.get('headers', {}).get('x-user-id') or event.get('headers', {}).get('X-User-Id', 'anonymous')
+            user_id_safe = user_id.replace("'", "''")
             
             cur.execute(f"SELECT seller_id FROM market_listings WHERE id = {listing_id}")
             listing = cur.fetchone()

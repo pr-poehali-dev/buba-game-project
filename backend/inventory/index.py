@@ -38,10 +38,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     try:
         if method == 'GET':
-            cur.execute(f"SELECT * FROM inventory WHERE user_id = '{user_id}' ORDER BY acquired_at DESC")
+            user_id_safe = user_id.replace("'", "''")
+            cur.execute(f"SELECT * FROM inventory WHERE user_id = '{user_id_safe}' ORDER BY acquired_at DESC")
             inventory = cur.fetchall()
             
-            cur.execute(f"SELECT balance FROM users WHERE user_id = '{user_id}'")
+            cur.execute(f"SELECT balance FROM users WHERE user_id = '{user_id_safe}'")
             user = cur.fetchone()
             balance = user['balance'] if user else 50
             
@@ -59,11 +60,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if action == 'add':
                 booba = body_data.get('booba')
                 
-                cur.execute(f"INSERT INTO users (user_id) VALUES ('{user_id}') ON CONFLICT (user_id) DO NOTHING")
+                user_id_safe = user_id.replace("'", "''")
+                booba_type_safe = booba['type'].replace("'", "''")
+                booba_name_safe = booba['name'].replace("'", "''")
+                booba_image_safe = booba['image'].replace("'", "''")
+                booba_rarity_safe = booba['rarity'].replace("'", "''")
+                
+                cur.execute(f"INSERT INTO users (user_id) VALUES ('{user_id_safe}') ON CONFLICT (user_id) DO NOTHING")
                 
                 cur.execute(f"""
                     INSERT INTO inventory (user_id, booba_type, booba_name, booba_image, booba_rarity)
-                    VALUES ('{user_id}', '{booba['type']}', '{booba['name']}', '{booba['image']}', '{booba['rarity']}')
+                    VALUES ('{user_id_safe}', '{booba_type_safe}', '{booba_name_safe}', '{booba_image_safe}', '{booba_rarity_safe}')
                     RETURNING id
                 """)
                 result = cur.fetchone()
@@ -78,8 +85,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             elif action == 'update_balance':
                 new_balance = body_data.get('balance')
+                user_id_safe = user_id.replace("'", "''")
                 
-                cur.execute(f"INSERT INTO users (user_id, balance) VALUES ('{user_id}', {new_balance}) ON CONFLICT (user_id) DO UPDATE SET balance = {new_balance}")
+                cur.execute(f"INSERT INTO users (user_id, balance) VALUES ('{user_id_safe}', {new_balance}) ON CONFLICT (user_id) DO UPDATE SET balance = {new_balance}")
                 conn.commit()
                 
                 return {
