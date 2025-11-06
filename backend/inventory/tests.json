@@ -1,0 +1,17 @@
+{
+  "tests": [
+    {
+      "name": "Get user inventory",
+      "method": "GET",
+      "headers": {
+        "X-User-Id": "test_user_123"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "inventory": "array",
+        "balance": "number"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

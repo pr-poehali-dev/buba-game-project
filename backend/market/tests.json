@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "Get market listings",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "listings": "array"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
