@@ -48,16 +48,16 @@ const LEGENDARY_BOOBA = {
 const MAGIC_BOOBA = {
   type: "magic",
   image: "https://cdn.poehali.dev/files/57e4ddfc-203a-455d-acf3-e11ddf5da903.jpg",
-  reward: 1000,
+  reward: 1000000,
   name: "Магический Буба"
 };
 
-const BOX_PRICE = 150;
+const BOX_PRICE = 50;
 const AD_REWARD = 100;
 const RARE_CHANCE = 0.12;
 const EPIC_CHANCE = 0.05;
 const LEGENDARY_CHANCE = 0.015;
-const MAGIC_CHANCE = 0.005;
+const MAGIC_CHANCE = 0.001;
 const AD_COOLDOWN = 60 * 60 * 1000;
 const QUICK_RETURN_THRESHOLD = 5000;
 
