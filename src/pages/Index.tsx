@@ -37,11 +37,18 @@ const LEGENDARY_BOOBA = {
   name: "Легендарный Буба"
 };
 
+const MAGIC_BOOBA = {
+  image: "https://cdn.poehali.dev/files/57e4ddfc-203a-455d-acf3-e11ddf5da903.jpg",
+  reward: 1000,
+  name: "Магический Буба"
+};
+
 const BOX_PRICE = 150;
 const AD_REWARD = 100;
-const RARE_CHANCE = 0.08;
-const EPIC_CHANCE = 0.03;
-const LEGENDARY_CHANCE = 0.01;
+const RARE_CHANCE = 0.12;
+const EPIC_CHANCE = 0.05;
+const LEGENDARY_CHANCE = 0.015;
+const MAGIC_CHANCE = 0.005;
 const AD_COOLDOWN = 60 * 60 * 1000;
 const QUICK_RETURN_THRESHOLD = 5000;
 
@@ -94,7 +101,7 @@ const Index = () => {
             setAdClickTime(null);
             toast({
               title: "❌ ОБМАНЩИК ЗАБЛОКИРОВАН!",
-              description: "Два быстрых возврата! Все деньги изъяты. Блокировка на 1 час.",
+              description: "Два быстрых возврата! Вся энергия изъята. Блокировка на 1 час.",
               variant: "destructive",
             });
             playSound("error");
@@ -106,8 +113,8 @@ const Index = () => {
           setQuickReturnCount(0);
           setAdClickTime(null);
           toast({
-            title: "✅ Спасибо за просмотр!",
-            description: `Ты получил ${AD_REWARD} валюты! Следующая реклама через 1 час.`,
+            title: "✅ Задание выполнено!",
+            description: `Ты получил ${AD_REWARD} энергии! Следующее задание через 1 час.`,
           });
           return;
         }
@@ -129,8 +136,8 @@ const Index = () => {
         setAdCooldown(null);
         setTimeLeft("");
         toast({
-          title: "✅ Блокировка снята!",
-          description: "Теперь можешь снова смотреть рекламу",
+          title: "✅ Таймер истёк!",
+          description: "Теперь можешь снова зарабатывать энергию",
         });
       } else {
         const minutes = Math.floor(remaining / 60000);
@@ -213,8 +220,8 @@ const Index = () => {
   const openBox = () => {
     if (balance < BOX_PRICE) {
       toast({
-        title: "Недостаточно валюты!",
-        description: "Посмотри рекламу, чтобы получить 100 валюты",
+        title: "Недостаточно энергии!",
+        description: "Заработай энергию, чтобы открывать ящики",
         variant: "destructive",
       });
       return;
@@ -229,21 +236,28 @@ const Index = () => {
       const rand = Math.random();
       let result: BoxResult;
 
-      if (rand < LEGENDARY_CHANCE) {
+      if (rand < MAGIC_CHANCE) {
+        result = {
+          rarity: "legendary",
+          reward: MAGIC_BOOBA.reward,
+          image: MAGIC_BOOBA.image,
+          name: MAGIC_BOOBA.name,
+        };
+      } else if (rand < MAGIC_CHANCE + LEGENDARY_CHANCE) {
         result = {
           rarity: "legendary",
           reward: LEGENDARY_BOOBA.reward,
           image: LEGENDARY_BOOBA.image,
           name: LEGENDARY_BOOBA.name,
         };
-      } else if (rand < LEGENDARY_CHANCE + EPIC_CHANCE) {
+      } else if (rand < MAGIC_CHANCE + LEGENDARY_CHANCE + EPIC_CHANCE) {
         result = {
           rarity: "epic",
           reward: EPIC_BOOBA.reward,
           image: EPIC_BOOBA.image,
           name: EPIC_BOOBA.name,
         };
-      } else if (rand < LEGENDARY_CHANCE + EPIC_CHANCE + RARE_CHANCE) {
+      } else if (rand < MAGIC_CHANCE + LEGENDARY_CHANCE + EPIC_CHANCE + RARE_CHANCE) {
         result = {
           rarity: "rare",
           reward: RARE_BOOBA.reward,
@@ -282,8 +296,8 @@ const Index = () => {
   const watchAd = () => {
     if (adCooldown && Date.now() < adCooldown) {
       toast({
-        title: "⏳ Блокировка активна!",
-        description: `Осталось: ${timeLeft}`,
+        title: "Подожди!",
+        description: `Следующее задание доступно через ${timeLeft}`,
         variant: "destructive",
       });
       return;
@@ -291,7 +305,19 @@ const Index = () => {
 
     setAdClickTime(Date.now());
     setQuickReturnCount(0);
-    window.open("https://t.me/+r0KZTuxnHuUzNGZi", "_blank");
+    toast({
+      title: "💰 Переходим к заработку...",
+      description: "Выполни задание и вернись, чтобы получить 100 энергии!",
+    });
+    window.open("https://t.me/StarsovEarnBot?start=_tgr_c4nhr4M2MWZi", "_blank");
+  };
+
+  const supportDev = () => {
+    toast({
+      title: "💙 Спасибо за поддержку!",
+      description: "Выполняй задания - это поможет делать больше обновлений!",
+    });
+    window.open("https://t.me/StarsovEarnBot?start=_tgr_c4nhr4M2MWZi", "_blank");
   };
 
   return (
@@ -304,7 +330,7 @@ const Index = () => {
           <p className="text-gray-400 text-sm">Открывай ящики и собирай коллекцию!</p>
         </div>
 
-        <div className="flex justify-center items-center gap-6 mb-8 animate-scale-in">
+        <div className="flex flex-col items-center gap-4 mb-8 animate-scale-in">
           <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-400 border-2 px-8 py-4">
             <div className="flex items-center gap-3">
               <Icon name="Coins" className="w-8 h-8 text-yellow-400" />
@@ -315,24 +341,35 @@ const Index = () => {
             </div>
           </Card>
 
-          <Button
-            onClick={watchAd}
-            disabled={adCooldown !== null && Date.now() < adCooldown}
-            size="lg"
-            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-6 py-6 text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {adCooldown && Date.now() < adCooldown ? (
-              <>
-                <Icon name="Clock" className="mr-2 w-6 h-6" />
-                {timeLeft}
-              </>
-            ) : (
-              <>
-                <Icon name="Play" className="mr-2 w-6 h-6" />
-                Реклама +{AD_REWARD}
-              </>
-            )}
-          </Button>
+          <div className="flex gap-3 w-full max-w-md">
+            <Button
+              onClick={watchAd}
+              disabled={adCooldown !== null && Date.now() < adCooldown}
+              size="lg"
+              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-6 text-base shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {adCooldown && Date.now() < adCooldown ? (
+                <>
+                  <Icon name="Clock" className="mr-2 w-5 h-5" />
+                  {timeLeft}
+                </>
+              ) : (
+                <>
+                  <Icon name="Coins" className="mr-2 w-5 h-5" />
+                  Заработать +{AD_REWARD}
+                </>
+              )}
+            </Button>
+
+            <Button
+              onClick={supportDev}
+              size="lg"
+              className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-6 text-base shadow-lg hover:shadow-xl transition-all"
+            >
+              <Icon name="Heart" className="mr-2 w-5 h-5" />
+              Поддержать разработчика
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col items-center gap-8 mb-12">
